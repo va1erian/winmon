@@ -56,6 +56,5 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-To check rendering without looking at the panel, build with the `snapshot`
-feature and set `WINMON_SNAPSHOT=out.bmp` (optionally `WINMON_SNAPSHOT_TICKS=8`).
+To check rendering without looking at the panel, set `WINMON_SNAPSHOT=out.bmp` (optionally `WINMON_SNAPSHOT_TICKS=8`).
 winmon then captures its window after that many ticks and exits.

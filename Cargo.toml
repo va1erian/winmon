@@ -9,12 +9,10 @@ description = "A tiny always-on system dashboard for a small secondary monitor"
 default = []
 # Read the NVIDIA GPU temperature directly through NVML.
 nvml = ["dep:nvml-wrapper"]
-# Dev aid: WINMON_SNAPSHOT captures the DWM-composited window (see snapshot.rs).
-snapshot = ["win32ui/wgc"]
 
 [dependencies]
 # Pinned: bump deliberately (PLAN.md §5).
-win32ui = { git = "https://github.com/va1erian/win32ui", rev = "58a2e00107e345d60613dd1096fd26b4a8951a52" }
+win32ui = { git = "https://github.com/va1erian/win32ui", rev = "8194c217f697f0dfae506d6d115ad5394450bfb7" }
 windows = { version = "0.62", default-features = false, features = [
     "Win32_Foundation",
     "Win32_Security",

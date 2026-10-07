@@ -2,7 +2,7 @@
 //! app lives here, behind safe functions.
 
 use windows::Win32::Foundation::{
-    CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, HWND, WAIT_OBJECT_0,
+    CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, WAIT_OBJECT_0,
 };
 use windows::Win32::System::Threading::{
     BELOW_NORMAL_PRIORITY_CLASS, CreateEventW, CreateMutexW, GetCurrentProcess, INFINITE,
@@ -11,34 +11,9 @@ use windows::Win32::System::Threading::{
     SetEvent, SetPriorityClass, SetProcessInformation, WaitForSingleObject,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GWL_EXSTYLE, GetWindowLongPtrW, MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowLongPtrW,
-    SetWindowPos, WM_POWERBROADCAST, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND, WM_POWERBROADCAST,
 };
 use windows::core::w;
-
-/// Keeps the window out of the taskbar and Alt-Tab, and stops clicks from
-/// taking the focus. TODO: replace with the win32ui `WindowSpec` option once
-/// it lands upstream.
-pub fn make_tool_window(hwnd: usize) {
-    let hwnd = HWND(hwnd as _);
-    // SAFETY: `hwnd` is our own live top-level window, used on its thread.
-    unsafe {
-        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        let ex = (ex | (WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0) as isize)
-            & !(WS_EX_APPWINDOW.0 as isize);
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex);
-        let _ = SetWindowPos(
-            hwnd,
-            None,
-            0,
-            0,
-            0,
-            0,
-            SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
-        );
-    }
-}
 
 /// EcoQoS plus below-normal priority: the dashboard never needs to be fast.
 pub fn lower_priority() {

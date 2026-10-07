@@ -14,6 +14,9 @@ use crate::ui::{Dashboard, Event, Options};
 use crate::weather::{self, Forecast, WeatherWorker};
 use crate::{log, monitor, platform};
 
+/// How late the 1 Hz tick may fire so Windows can batch it with other timers.
+const TICK_TOLERANCE_MS: u32 = 100;
+
 pub enum Msg {
     Tick,
     Temps(std::result::Result<Vec<TempReading>, String>),
@@ -35,9 +38,13 @@ pub struct WinMon {
 }
 
 pub fn run(config: Config, windowed: bool) -> win32ui::Result<()> {
+    // Fullscreen, the window stays out of the taskbar and Alt-Tab and clicks
+    // never take the focus; windowed (development) it is a normal window.
     let spec = WindowSpec::new("winmon")
         .size(dip(480.0), dip(800.0))
-        .theme(Theme::dark());
+        .theme(Theme::dark())
+        .tool_window(!windowed)
+        .no_activate(!windowed);
     run_app(spec, move |ui| WinMon::new(ui, config, windowed))
 }
 
@@ -52,10 +59,11 @@ impl WinMon {
             });
         ui.set_layout(column![dashboard.fill(1)]);
 
-        // One 1 Hz cadence drives sampling and redraw.
-        match ui.set_timer(config.refresh.tick_ms) {
+        // One 1 Hz cadence drives sampling and redraw. It needn't be exact, so
+        // let Windows coalesce it with other timers to save wake-ups.
+        match ui.set_coalescable_timer(config.refresh.tick_ms, TICK_TOLERANCE_MS) {
             Ok(tick) => ui.on_timer(move |id| (id == tick).then_some(Msg::Tick)),
-            Err(e) => log::error(&format!("set_timer: {e}")),
+            Err(e) => log::error(&format!("set_coalescable_timer: {e}")),
         }
         ui.on_display_change(|| Some(Msg::DisplayChanged));
         let proxy = ui.proxy();
@@ -76,7 +84,6 @@ impl WinMon {
         }
 
         if !windowed {
-            platform::make_tool_window(ui.hwnd().raw());
             let _ = ui.hide_cursor_when_idle(2000);
         }
 
@@ -120,11 +127,8 @@ impl WinMon {
 
     fn take_snapshot(&mut self, ui: &mut Ui<Msg>) {
         if let Some(snap) = self.snapshot.take() {
-            #[cfg(feature = "snapshot")]
-            let image = ui.capture_composited();
-            #[cfg(not(feature = "snapshot"))]
-            let image = ui.capture();
-            match image
+            match ui
+                .capture()
                 .map_err(|e| e.to_string())
                 .and_then(|img| snap.save(&img).map_err(|e| e.to_string()))
             {
@@ -155,14 +159,7 @@ impl WinMon {
     fn enter(&mut self, ui: &mut Ui<Msg>, target: &MonitorInfo) {
         log::info(&format!("fullscreen on {}", monitor::describe(target)));
         // Re-entering just moves/resizes, which also handles resolution changes.
-        // Entered twice: moving onto a monitor with another DPI fires
-        // WM_DPICHANGED, whose suggested rect shrinks the window; the second
-        // call runs on the target monitor, so it sticks. TODO: drop once the
-        // win32ui fullscreen DPI fix lands.
-        let result = ui
-            .enter_fullscreen(target)
-            .and_then(|()| ui.enter_fullscreen(target));
-        match result {
+        match ui.enter_fullscreen(target) {
             Ok(()) => self.placed_on = Some(target.device_name.clone()),
             Err(e) => log::error(&format!("enter_fullscreen: {e}")),
         }
