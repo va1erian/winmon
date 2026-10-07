@@ -22,6 +22,10 @@ jobs:
       TAG: ${{ github.event.release.tag_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Cargo runs dependency build scripts; don't leave the write token
+          # on disk for them. The upload step passes its own token to gh.
+          persist-credentials: false
 
       - name: Check the tag matches Cargo.toml
         shell: pwsh
@@ -38,10 +42,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # Separate steps: in one PowerShell step, a failing clippy would be
+      # masked by a passing cargo test (only the last exit code counts).
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
       - name: Test
-        run: |
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo test --locked
+        run: cargo test --locked
 
       - name: Build the setup exe
         shell: pwsh
