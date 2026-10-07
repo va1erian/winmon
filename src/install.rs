@@ -159,7 +159,14 @@ fn remove_files(paths: &[PathBuf]) {
 /// registry entries and the program folder. With `remove_settings`, the
 /// config and log folders go too.
 pub fn uninstall(remove_settings: bool) -> anyhow::Result<()> {
-    platform::stop_running(STOP_TIMEOUT);
+    // Fail before removing anything: a dashboard that's still running keeps
+    // its exe locked, and a half-done uninstall would leave no Apps entry to
+    // retry from.
+    if !platform::stop_running(STOP_TIMEOUT) {
+        return Err(anyhow!(
+            "winmon is running and didn't exit; close it and retry"
+        ));
+    }
     registry::delete_value(RUN_KEY, VALUE).context("autostart registry value")?;
     remove_files(&shortcuts()?);
     registry::delete_key(UNINSTALL_KEY).context("Apps & features entry")?;
