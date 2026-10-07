@@ -1,0 +1,28 @@
+// Template: build.rs fills in the @...@ placeholders.
+#include <winver.h>
+
+1 24 "@MANIFEST@"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION @MAJOR@,@MINOR@,@PATCH@,0
+PRODUCTVERSION @MAJOR@,@MINOR@,@PATCH@,0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "FileDescription", "winmon system dashboard"
+      VALUE "FileVersion", "@VERSION@"
+      VALUE "ProductName", "winmon"
+      VALUE "ProductVersion", "@VERSION@"
+      VALUE "OriginalFilename", "winmon.exe"
+      VALUE "LegalCopyright", "MIT License"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END

@@ -23,7 +23,8 @@ and can be checked against its acceptance criteria before moving on.
 
 **Non-goals (v1)**
 
-- No in-app settings UI: configuration is a TOML file.
+- No settings UI inside the dashboard. Configuration is a TOML file, edited by
+  hand or by a separate settings dialog (`winmon --settings`, Phase 7b).
 - No kernel driver of our own: temperatures come from existing sources (§6).
 - No themes or layout editor: one layout tuned for portrait 480×800, scaled
   proportionally for other sizes.
@@ -63,7 +64,7 @@ and can be checked against its acceptance criteria before moving on.
 ```
 winmon/
 ├── Cargo.toml
-├── build.rs                 # app manifest (DPI awareness, icon) via embed-resource
+├── build.rs                 # manifest + version resource (winmon.rc) via embed-resource
 ├── winmon.example.toml
 ├── src/
 │   ├── main.rs              # arg parsing, config load, run_app
@@ -430,6 +431,39 @@ produces an executable. Record its size.
 - Launching it twice leaves one instance.
 - Sleep/resume and a 24-hour soak run cause no drift, leaks, or frozen data.
 
+Implemented with the per-user `HKCU\...\Run` key rather than Task Scheduler:
+it needs no XML template and Phase 7b's installer manages it.
+
+### Phase 7b — Installer and settings dialog
+
+**Do**
+
+- `build.rs` + `winmon.rc`: embed the manifest (Common Controls v6 for native
+  controls and task dialogs, per-monitor-v2 DPI, `asInvoker`) and a version
+  resource.
+- Self-installing exe (`install.rs`, `setup.rs`): no external toolchain
+  (Inno Setup, WiX). Per user, no elevation:
+  `%LOCALAPPDATA%\Programs\winmon\winmon.exe`, Start menu shortcuts
+  (`IShellLinkW`), optional `Run` key, and an `HKCU\...\Uninstall\winmon` entry
+  so Settings → Apps can remove it. `--install`/`--uninstall` open a small
+  window; `--quiet` skips it. A copy named `*setup*.exe` opens the setup
+  window when started without arguments; `scripts\package.ps1` produces
+  `dist\winmon-setup.exe`. Uninstall stops the dashboard, and a hidden `cmd`
+  deletes the running exe's folder after it exits.
+- Settings dialog (`settings/`): a native tabbed form (Display, Temperatures,
+  Weather, Advanced) over `Config`. It lists sensors from LHM, searches places
+  with Open-Meteo geocoding, validates numbers, and writes the TOML atomically.
+- Hot reload (from Phase 8): the dashboard stats the config file on each tick.
+  When the file changes to a valid, different config, it exits its loop and
+  re-executes itself.
+
+**Done when**
+
+- Installing, updating and uninstalling from Settings → Apps leave no files
+  or registry values behind, except the config and log when the user keeps them.
+- Saving in the dialog updates a running dashboard within about a second;
+  saving a broken file by hand leaves the dashboard running and logs the error.
+
 ### Phase 8 — Polish (optional)
 
 - Upstream to win32ui: a `WindowSpec` option for tool/no-activate windows
@@ -438,8 +472,8 @@ produces an executable. Record its size.
   few minutes.
 - Night dimming: lower the brightness of the palette between configurable
   hours.
-- Config hot reload: watch the TOML file (`ReadDirectoryChangesW`) and apply
-  the changes.
+- ~~Config hot reload~~: done in Phase 7b, by checking the file's modification
+  time on each tick instead of `ReadDirectoryChangesW`.
 - Swap `ureq` for WinHTTP if the binary size matters.
 - Extra tiles: network up/down (`GetIfTable2` deltas), disk usage, GPU load
   from NVML.

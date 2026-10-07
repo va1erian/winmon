@@ -3,9 +3,9 @@
 
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub display: Display,
@@ -15,7 +15,7 @@ pub struct Config {
     pub clock: Clock,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Display {
     /// Substring of the monitor's friendly name, case-insensitive.
@@ -24,7 +24,7 @@ pub struct Display {
     pub monitor_device: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Refresh {
     pub tick_ms: u32,
@@ -44,14 +44,14 @@ impl Default for Refresh {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TempSourceKind {
     Lhm,
     None,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Temps {
     pub source: TempSourceKind,
@@ -81,14 +81,14 @@ impl Default for Temps {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Units {
     Metric,
     Imperial,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Weather {
     pub enabled: bool,
@@ -111,7 +111,7 @@ impl Default for Weather {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Clock {
     pub format_24h: bool,
@@ -130,12 +130,48 @@ impl Default for Clock {
 impl Config {
     pub fn parse(text: &str) -> anyhow::Result<Config> {
         let mut config: Config = toml::from_str(text)?;
-        config.refresh.tick_ms = config.refresh.tick_ms.max(100);
-        config.refresh.history_seconds = config.refresh.history_seconds.clamp(2, 3600);
-        config.refresh.temps_ms = config.refresh.temps_ms.max(250);
-        config.refresh.weather_minutes = config.refresh.weather_minutes.max(5);
-        config.weather.days = config.weather.days.clamp(1, 16);
+        config.clamp();
         Ok(config)
+    }
+
+    /// Pulls every value into its supported range.
+    pub fn clamp(&mut self) {
+        let r = &mut self.refresh;
+        r.tick_ms = r.tick_ms.clamp(100, 60_000);
+        r.history_seconds = r.history_seconds.clamp(2, 3600);
+        r.temps_ms = r.temps_ms.clamp(250, 600_000);
+        r.weather_minutes = r.weather_minutes.clamp(5, 24 * 60);
+        let w = &mut self.weather;
+        w.days = w.days.clamp(1, 16);
+        w.latitude = w.latitude.clamp(-90.0, 90.0);
+        w.longitude = w.longitude.clamp(-180.0, 180.0);
+        for name in [&mut self.display.monitor, &mut self.display.monitor_device] {
+            if name.as_deref().is_some_and(|n| n.trim().is_empty()) {
+                *name = None;
+            }
+        }
+    }
+
+    /// The config as TOML, with a header saying where it came from. Unset
+    /// optional keys are left out, so they keep meaning "automatic".
+    pub fn to_toml(&self) -> String {
+        let body = toml::to_string_pretty(self).expect("config serializes");
+        format!(
+            "# winmon config, written by `winmon --settings`. Every key is optional;\n\
+             # see winmon.example.toml for what each one does.\n\n{body}"
+        )
+    }
+
+    /// Writes the config to `path` atomically (temp file + rename), so a
+    /// running winmon watching the file never reads half of it.
+    pub fn save(&self, path: &Path) -> anyhow::Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, self.to_toml())?;
+        std::fs::rename(&tmp, path)?;
+        Ok(())
     }
 
     /// Loads `path`, or the default location. A missing default file is not an

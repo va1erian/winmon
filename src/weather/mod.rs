@@ -1,5 +1,6 @@
 //! Weather forecast, fetched on a worker thread (PLAN.md Phase 5).
 
+pub mod geocode;
 pub mod icons;
 pub mod openmeteo;
 
