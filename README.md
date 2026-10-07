@@ -91,6 +91,15 @@ under a name that contains "setup", winmon opens the setup window.
 per-monitor DPI, and `asInvoker`, which stops Windows from auto-elevating an
 exe named `*setup*`.
 
+### Releasing
+
+Bump `version` in `Cargo.toml`, merge, then publish a GitHub release with
+the tag `v<version>` (e.g. `v0.2.0`). The [release workflow](.github/workflows/release.yml)
+runs clippy and the tests on Windows, builds `winmon-setup-v0.2.0.exe`, and
+attaches it and its `.sha256` to the release. If the tag doesn't match
+`Cargo.toml`, the workflow fails without attaching anything. Tags that don't
+start with `v` are ignored.
+
 To check rendering without looking at the panel, set `WINMON_SNAPSHOT=out.bmp` (optionally `WINMON_SNAPSHOT_TICKS=8`).
 winmon then captures its window after that many ticks and exits. This also
 works for `--settings` (`WINMON_SNAPSHOT_TAB=0..3` picks the tab), `--install`
