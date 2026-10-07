@@ -1,6 +1,9 @@
 //! The win32ui app: messages, timer, workers, monitor placement.
 
-use std::time::{Duration, Instant};
+use std::cell::Cell;
+use std::path::PathBuf;
+use std::rc::Rc;
+use std::time::{Duration, Instant, SystemTime};
 
 use win32ui::prelude::*;
 use win32ui::{Custom, MonitorInfo, Proxy, column};
@@ -26,6 +29,55 @@ pub enum Msg {
     Quit,
 }
 
+/// Why the dashboard's loop ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Exit {
+    Quit,
+    /// The config file changed: start again with the new settings.
+    Restart,
+}
+
+/// Watches the config file's modification time (one stat per tick).
+struct ConfigWatch {
+    path: PathBuf,
+    modified: Option<SystemTime>,
+    /// The running config, to ignore saves that change nothing.
+    current: String,
+}
+
+impl ConfigWatch {
+    fn new(path: PathBuf, config: &Config) -> Self {
+        ConfigWatch {
+            modified: modified(&path),
+            path,
+            current: config.to_toml(),
+        }
+    }
+
+    /// Whether the file now holds a different, valid config.
+    fn changed(&mut self) -> bool {
+        let now = modified(&self.path);
+        if now == self.modified {
+            return false;
+        }
+        self.modified = now;
+        if now.is_none() {
+            return false; // deleted: keep running as is
+        }
+        match Config::load(Some(&self.path)) {
+            Ok(c) => c.to_toml() != self.current,
+            Err(e) => {
+                log::error(&format!("config reload: {e:#}"));
+                false
+            }
+        }
+    }
+}
+
+fn modified(path: &std::path::Path) -> Option<SystemTime> {
+    std::fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
 pub struct WinMon {
     dashboard: Custom<Dashboard, Msg>,
     cpu: CpuSampler,
@@ -35,9 +87,13 @@ pub struct WinMon {
     placed_on: Option<String>,
     weather: Option<WeatherWorker>,
     snapshot: Option<Snapshot>,
+    watch: Option<ConfigWatch>,
+    exit: Rc<Cell<Exit>>,
 }
 
-pub fn run(config: Config, windowed: bool) -> win32ui::Result<()> {
+/// Runs the dashboard until it quits. `config_path` is watched: when the
+/// file changes to a valid config, this returns [`Exit::Restart`].
+pub fn run(config: Config, config_path: Option<PathBuf>, windowed: bool) -> win32ui::Result<Exit> {
     // Fullscreen, the window stays out of the taskbar and Alt-Tab and clicks
     // never take the focus; windowed (development) it is a normal window.
     let spec = WindowSpec::new("winmon")
@@ -45,11 +101,23 @@ pub fn run(config: Config, windowed: bool) -> win32ui::Result<()> {
         .theme(Theme::dark())
         .tool_window(!windowed)
         .no_activate(!windowed);
-    run_app(spec, move |ui| WinMon::new(ui, config, windowed))
+    let exit = Rc::new(Cell::new(Exit::Quit));
+    let app_exit = exit.clone();
+    run_app(spec, move |ui| {
+        let watch = config_path.map(|p| ConfigWatch::new(p, &config));
+        WinMon::new(ui, config, windowed, watch, app_exit)
+    })?;
+    Ok(exit.get())
 }
 
 impl WinMon {
-    fn new(ui: &mut Ui<Msg>, config: Config, windowed: bool) -> WinMon {
+    fn new(
+        ui: &mut Ui<Msg>,
+        config: Config,
+        windowed: bool,
+        watch: Option<ConfigWatch>,
+        exit: Rc<Cell<Exit>>,
+    ) -> WinMon {
         let mut model = Model::new(config.refresh.history_seconds);
         model.now = sampler::local_time();
         let dashboard = Custom::new(ui, Dashboard::new(model, Options::from_config(&config)))
@@ -104,6 +172,8 @@ impl WinMon {
             placed_on: None,
             weather,
             snapshot: Snapshot::from_env(),
+            watch,
+            exit,
         };
         app.cpu.sample(); // prime the delta
         app
@@ -127,15 +197,7 @@ impl WinMon {
 
     fn take_snapshot(&mut self, ui: &mut Ui<Msg>) {
         if let Some(snap) = self.snapshot.take() {
-            match ui
-                .capture()
-                .map_err(|e| e.to_string())
-                .and_then(|img| snap.save(&img).map_err(|e| e.to_string()))
-            {
-                Ok(()) => log::info("snapshot saved"),
-                Err(e) => log::error(&format!("snapshot: {e}")),
-            }
-            ui.quit();
+            snap.capture(ui);
         }
     }
 
@@ -172,6 +234,12 @@ impl App for WinMon {
     fn update(&mut self, msg: Msg, ui: &mut Ui<Msg>) {
         match msg {
             Msg::Tick => {
+                if self.watch.as_mut().is_some_and(ConfigWatch::changed) {
+                    log::info("config changed: restarting");
+                    self.exit.set(Exit::Restart);
+                    ui.quit();
+                    return;
+                }
                 self.tick();
                 if self.snapshot.as_mut().is_some_and(Snapshot::tick) {
                     self.dashboard.invalidate();

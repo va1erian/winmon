@@ -1,8 +1,12 @@
 //! Development aid: `WINMON_SNAPSHOT=out.bmp` captures the window to a BMP
 //! after `WINMON_SNAPSHOT_TICKS` ticks (default 5), then exits. Lets the
-//! dashboard be checked without access to the physical screen.
+//! dashboard be checked without access to the physical screen. The settings
+//! and setup windows honour it too (one tick per second); for settings,
+//! `WINMON_SNAPSHOT_TAB=<n>` picks the tab.
 
-use win32ui::RgbaImage;
+use win32ui::{RgbaImage, Ui};
+
+use crate::log;
 
 pub struct Snapshot {
     path: String,
@@ -29,6 +33,43 @@ impl Snapshot {
 
     pub fn save(&self, image: &RgbaImage) -> std::io::Result<()> {
         std::fs::write(&self.path, bmp(image))
+    }
+
+    /// Captures `ui`'s window, saves it and ends the loop.
+    pub fn capture<M: 'static>(&self, ui: &Ui<M>) {
+        match ui
+            .capture()
+            .map_err(|e| e.to_string())
+            .and_then(|img| self.save(&img).map_err(|e| e.to_string()))
+        {
+            Ok(()) => log::info("snapshot saved"),
+            Err(e) => log::error(&format!("snapshot: {e}")),
+        }
+        ui.quit();
+    }
+
+    /// For windows without their own tick: when a snapshot is requested,
+    /// maps a 1 s timer to `msg`; call [`Snapshot::on_tick`] on it.
+    pub fn arm<M: 'static>(ui: &Ui<M>, msg: impl Fn() -> M + 'static) -> Option<Snapshot> {
+        let snap = Snapshot::from_env()?;
+        let id = ui.set_timer(1000).ok()?;
+        ui.on_timer(move |t| (t == id).then(&msg));
+        Some(snap)
+    }
+
+    /// Counts a tick of an [`arm`](Snapshot::arm)ed window; captures when due.
+    pub fn on_tick<M: 'static>(snap: &mut Option<Snapshot>, ui: &Ui<M>) {
+        if let Some(s) = snap.as_mut()
+            && s.tick()
+        {
+            s.capture(ui);
+            *snap = None;
+        }
+    }
+
+    /// `WINMON_SNAPSHOT_TAB`, for the settings window.
+    pub fn tab() -> Option<usize> {
+        std::env::var("WINMON_SNAPSHOT_TAB").ok()?.parse().ok()
     }
 }
 

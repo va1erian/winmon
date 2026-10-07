@@ -1227,6 +1227,7 @@ name = "winmon"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "embed-resource",
  "nvml-wrapper",
  "serde",
  "serde_json",

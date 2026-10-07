@@ -16,10 +16,13 @@ win32ui = { git = "https://github.com/va1erian/win32ui", rev = "8194c217f697f0df
 windows = { version = "0.62", default-features = false, features = [
     "Win32_Foundation",
     "Win32_Security",
+    "Win32_System_Com",
     "Win32_System_Console",
     "Win32_System_Power",
+    "Win32_System_Registry",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
 serde = { version = "1", features = ["derive"] }
@@ -28,6 +31,9 @@ toml = "0.9"
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 anyhow = "1"
 nvml-wrapper = { version = "0.11", optional = true }
+
+[build-dependencies]
+embed-resource = "3"
 
 [profile.release]
 opt-level = "s"

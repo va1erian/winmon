@@ -1,6 +1,9 @@
 //! Raw Win32 calls win32ui doesn't cover (yet). Everything `unsafe` in the
 //! app lives here, behind safe functions.
 
+pub mod registry;
+pub mod shell;
+
 use windows::Win32::Foundation::{
     CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE, WAIT_OBJECT_0,
 };
@@ -61,6 +64,27 @@ pub fn single_instance() -> Option<InstanceGuard> {
     }
 }
 
+/// Whether a winmon dashboard is running in this session.
+pub fn is_running() -> bool {
+    single_instance().is_none()
+}
+
+/// Asks a running dashboard to exit and waits up to `timeout` for it to go.
+/// Returns whether none is running afterwards.
+pub fn stop_running(timeout: std::time::Duration) -> bool {
+    if !signal_quit() {
+        return !is_running();
+    }
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        if !is_running() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    !is_running()
+}
+
 /// Waits (on a small thread) for `winmon --quit` and calls `on_quit` once.
 pub fn listen_for_quit(on_quit: impl FnOnce() + Send + 'static) {
     // SAFETY: plain named auto-reset event creation.
@@ -110,6 +134,35 @@ pub fn is_resume(msg: *const std::ffi::c_void) -> bool {
             msg.wParam.0 as u32,
             PBT_APMRESUMEAUTOMATIC | PBT_APMRESUMESUSPEND
         )
+}
+
+/// Gives a top-level window a fixed dialog frame: no minimize or maximize
+/// button and no resize border. `hwnd` is `win32ui::Hwnd::raw()`.
+/// (win32ui's `WindowSpec` has no option for this yet.)
+pub fn dialog_frame(hwnd: usize) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GWL_STYLE, GetWindowLongPtrW, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
+        WS_THICKFRAME,
+    };
+    let hwnd = HWND(hwnd as _);
+    // SAFETY: `hwnd` is a live window owned by this thread; changing its style
+    // bits and asking for a frame recalculation has no other preconditions.
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        let remove = (WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME).0 as isize;
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style & !remove);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        );
+    }
 }
 
 /// Lets a GUI-subsystem release build print `--list-*` output to the console
