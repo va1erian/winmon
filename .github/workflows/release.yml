@@ -1,0 +1,60 @@
+# Publishing a GitHub release whose tag starts with "v" (e.g. v0.2.0) builds
+# the release binary and attaches it to that release as
+# winmon-setup-<tag>.exe, plus its SHA-256 checksum.
+#
+# The tag must match Cargo.toml's version: the installer writes that version
+# into Settings > Apps, so a mismatch fails the build instead of shipping it.
+
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write # upload release assets
+
+jobs:
+  build:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches Cargo.toml
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          if ("v$version" -ne $env:TAG) {
+            Write-Error "Tag $env:TAG doesn't match Cargo.toml version $version (expected v$version)."
+            exit 1
+          }
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: |
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+
+      - name: Build the setup exe
+        shell: pwsh
+        run: ./scripts/package.ps1
+
+      - name: Attach to the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Keep "setup" in the name: that's what makes the exe open the setup window.
+          $exe = "winmon-setup-$env:TAG.exe"
+          Copy-Item dist/winmon-setup.exe $exe
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  $exe" | Out-File -Encoding ascii "$exe.sha256"
+          gh release upload $env:TAG $exe "$exe.sha256" --clobber
