@@ -1,0 +1,56 @@
+{
+  "id": 0, "Text": "Sensor", "Min": "Min", "Value": "Value", "Max": "Max", "ImageURL": "",
+  "Children": [
+    {
+      "id": 1, "Text": "DESKTOP-TEST", "Min": "", "Value": "", "Max": "", "ImageURL": "images_icon/computer.png",
+      "Children": [
+        {
+          "id": 2, "Text": "ASUS ROG STRIX B550-F", "Min": "", "Value": "", "Max": "", "ImageURL": "images_icon/mainboard.png",
+          "Children": [
+            {
+              "id": 3, "Text": "Nuvoton NCT6798D", "Min": "", "Value": "", "Max": "", "ImageURL": "images_icon/chip.png",
+              "Children": [
+                {
+                  "id": 4, "Text": "Temperatures", "Min": "", "Value": "", "Max": "", "ImageURL": "",
+                  "Children": [
+                    { "id": 5, "Text": "Motherboard", "Min": "30,0 °C", "Value": "31,5 °C", "Max": "33,0 °C", "SensorId": "/lpc/nct6798d/0/temperature/0", "Type": "Temperature", "ImageURL": "images/transparent.png", "Children": [] }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 6, "Text": "AMD Ryzen 7 5800X", "Min": "", "Value": "", "Max": "", "ImageURL": "images_icon/cpu.png",
+          "Children": [
+            {
+              "id": 7, "Text": "Load", "Min": "", "Value": "", "Max": "", "ImageURL": "",
+              "Children": [
+                { "id": 8, "Text": "CPU Total", "Min": "1.2 %", "Value": "7.5 %", "Max": "100.0 %", "SensorId": "/amdcpu/0/load/0", "Type": "Load", "ImageURL": "images/transparent.png", "Children": [] }
+              ]
+            },
+            {
+              "id": 9, "Text": "Temperatures", "Min": "", "Value": "", "Max": "", "ImageURL": "",
+              "Children": [
+                { "id": 10, "Text": "Core (Tctl/Tdie)", "Min": "38.1 °C", "Value": "45.3 °C", "Max": "81.0 °C", "SensorId": "/amdcpu/0/temperature/2", "Type": "Temperature", "ImageURL": "images/transparent.png", "Children": [] },
+                { "id": 11, "Text": "CCD1 (Tdie)", "Min": "36.0 °C", "Value": "43.0 °C", "Max": "78.5 °C", "SensorId": "/amdcpu/0/temperature/3", "Type": "Temperature", "ImageURL": "images/transparent.png", "Children": [] }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 12, "Text": "NVIDIA GeForce RTX 3070", "Min": "", "Value": "", "Max": "", "ImageURL": "images_icon/nvidia.png",
+          "Children": [
+            {
+              "id": 13, "Text": "Temperatures", "Min": "", "Value": "", "Max": "", "ImageURL": "",
+              "Children": [
+                { "id": 14, "Text": "GPU Core", "Min": "35.0 °C", "Value": "52.0 °C", "Max": "70.0 °C", "SensorId": "/gpu-nvidia/0/temperature/0", "Type": "Temperature", "ImageURL": "images/transparent.png", "Children": [] },
+                { "id": 15, "Text": "GPU Hot Spot", "Min": "", "Value": "", "Max": "", "SensorId": "/gpu-nvidia/0/temperature/2", "Type": "Temperature", "ImageURL": "images/transparent.png", "Children": [] }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

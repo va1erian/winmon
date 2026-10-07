@@ -1,0 +1,36 @@
+# winmon config. Copy to %APPDATA%\winmon\winmon.toml (or pass --config).
+# Every key is optional; these are the defaults unless noted.
+
+[display]
+# Match by friendly name (substring, case-insensitive) or exact device name,
+# as printed by `winmon --list-monitors`. If unset or not found: the smallest
+# non-primary monitor. With only the primary attached, winmon runs windowed.
+monitor = "USB Display"          # example; default: unset
+# monitor_device = "\\\\.\\DISPLAY3"
+
+[refresh]
+tick_ms = 1000          # redraw + CPU/mem sample interval
+history_seconds = 120   # graph width in samples
+temps_ms = 2000
+weather_minutes = 30
+
+[temps]
+source = "lhm"          # "lhm" | "none"
+lhm_url = "http://127.0.0.1:8085/data.json"
+# Sensor ids as printed by `winmon --list-sensors`. Unset: best guess.
+# cpu_sensor = "/amdcpu/0/temperature/2"
+# gpu_sensor = "/gpu-nvidia/0/temperature/0"
+nvml = true             # read the NVIDIA GPU directly (build with --features nvml)
+warm = 60.0             # value turns orange from here...
+hot = 80.0              # ...and red here
+
+[weather]
+enabled = true
+latitude = 48.8566      # default: Paris
+longitude = 2.3522
+days = 5
+units = "metric"        # "metric" | "imperial"
+
+[clock]
+format_24h = true
+show_seconds = false

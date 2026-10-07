@@ -1,0 +1,39 @@
+[package]
+name = "winmon"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "A tiny always-on system dashboard for a small secondary monitor"
+
+[features]
+default = []
+# Read the NVIDIA GPU temperature directly through NVML.
+nvml = ["dep:nvml-wrapper"]
+# Dev aid: WINMON_SNAPSHOT captures the DWM-composited window (see snapshot.rs).
+snapshot = ["win32ui/wgc"]
+
+[dependencies]
+# Pinned: bump deliberately (PLAN.md §5).
+win32ui = { git = "https://github.com/va1erian/win32ui", rev = "58a2e00107e345d60613dd1096fd26b4a8951a52" }
+windows = { version = "0.62", default-features = false, features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Console",
+    "Win32_System_Power",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+anyhow = "1"
+nvml-wrapper = { version = "0.11", optional = true }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
